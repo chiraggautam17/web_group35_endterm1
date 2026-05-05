@@ -9,10 +9,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
-/**
- * REST Controller for the Intelligent Parking System.
- * Handles incoming HTTP requests for parking operations.
- */
 @RestController
 @RequestMapping("/api/parking")
 public class ParkingController {
@@ -24,20 +20,10 @@ public class ParkingController {
         this.parkingManager = parkingManager;
     }
 
-    /**
-     * Endpoint to check the status of all parking slots.
-     * GET /api/parking/status
-     */
     @GetMapping("/status")
     public List<ParkingSlot> getParkingStatus() {
         return parkingManager.getStatus();
     }
-
-    /**
-     * Endpoint to park a vehicle.
-     * POST /api/parking/park
-     * Request body: {"licensePlate": "XYZ123", "vehicleType": "CAR"}
-     */
     @PostMapping("/park")
     public ResponseEntity<?> parkVehicle(@RequestBody Map<String, String> request) {
         String licensePlate = request.get("licensePlate");
@@ -64,11 +50,6 @@ public class ParkingController {
         }
     }
 
-    /**
-     * Endpoint to unpark a vehicle.
-     * POST /api/parking/unpark
-     * Request body: {"slotId": "S1"}
-     */
     @PostMapping("/unpark")
     public ResponseEntity<?> unparkVehicle(@RequestBody Map<String, String> request) {
         String slotId = request.get("slotId");
@@ -80,7 +61,6 @@ public class ParkingController {
         boolean success = parkingManager.unparkVehicle(slotId);
 
         if (success) {
-            // In a real app, you would calculate and return the fee here.
             return ResponseEntity.ok(Map.of("message", "Vehicle successfully unparked from slot " + slotId + "."));
         } else {
             return ResponseEntity.badRequest().body(Map.of("message", "Invalid slot ID or slot is already empty: " + slotId));
