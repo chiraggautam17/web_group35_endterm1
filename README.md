@@ -1,3 +1,4 @@
+
 # Intelligent Parking System 🚗🅿️
 
 A Spring Boot–based **Intelligent Parking System** that digitally manages parking slots and vehicles.  
@@ -431,3 +432,6 @@ Full Stack Developer
 Feel free to connect on LinkedIn or GitHub once you publish this project.
 
 ---
+=======
+# web_group35_endterm1
+
