@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intelligent Parking System Dashboard</title>
+	<link type="image/png" sizes="32x32" rel="icon" href="icons8-parking-96.png">
+    <!-- Load Tailwind CSS from CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 1. Custom Background (Using SVG for Abstract Pattern) */
+        body {
+            /* Dark base color */
+            background-color: #1a202c; 
+            /* Complex abstract background for a modern look */
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100%25' height='100%25' viewBox='0 0 1600 800'%3E%3Cg fill='%232d3748' fill-opacity='0.16'%3E%3Cpath fill-rule='evenodd' d='M0 1600V0h1600L0 1600z'/%3E%3Cpath fill-rule='evenodd' d='M1600 1600V0H0L1600 1600z'/%3E%3Cpath fill-rule='evenodd' d='M1600 800V0H0L1600 800z'/%3E%3Cpath fill-rule='evenodd' d='M1600 1600V800H0L1600 1600z'/%3E%3C/g%3E%3C/svg%3E");
+            background-attachment: fixed;
+            color: #e2e8f0; /* Light text for dark background */
+        }
+        
+        /* 2. Glassmorphism Effect Class */
+        .glass-card {
+            background-color: rgba(255, 255, 255, 0.1); /* Subtle white transparency */
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(8px); /* The core glass effect */
+            -webkit-backdrop-filter: blur(8px);
+        }
+
+        /* Custom scrollbar for a cleaner look */
+        .slot-grid::-webkit-scrollbar {
+            width: 8px;
+        }
+        .slot-grid::-webkit-scrollbar-thumb {
+            background-color: #63b3ed; /* Blue-300 */
+            border-radius: 4px;
+        }
+        .slot-grid::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05); /* Transparent track */
+        }
+        /* Style for the slot icons */
+        .slot-icon {
+            display: inline-block;
+            margin-right: 4px;
+            vertical-align: middle;
+        }
+        /* Add hover effect to interactive slot cards */
+        .slot-card:hover {
+            transform: scale(1.05);
+        }
+        .slot-card {
+            transition: transform 0.2s ease-in-out;
+        }
+    </style>
+</head>
+<body class="min-h-screen font-sans p-4 md:p-8"> 
+
+    <!-- Main Dashboard Container -->
+    <div class="max-w-6xl mx-auto">
+        <header class="text-center mb-10">
+            <!-- Increased contrast on title -->
+            <h1 class="text-4xl font-extrabold text-white text-shadow-lg">
+                Intelligent Parking System (IPS)
+            </h1>
+            <p class="text-lg text-gray-300 mt-2">
+                Real-time management and operations dashboard
+            </p>
+        </header>
+
+        <!-- Loading Spinner -->
+        <div id="loading" class="text-center py-12 hidden">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto"></div>
+            <p class="text-gray-400 mt-3">Loading parking status...</p>
+        </div>
+
+        <!-- Message Box for Alerts and Errors -->
+        <div id="message-box" class="hidden p-4 mb-6 rounded-xl shadow-xl transition-opacity duration-300 glass-card" role="alert">
+            <p id="message-text" class="font-medium"></p>
+        </div>
+
+        <!-- Operations Panel (Park/Unpark) -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
+            
+            <!-- Park Vehicle Card (Glassmorphism applied) -->
+            <div class="lg:col-span-1 p-6 rounded-xl shadow-xl border-green-400 glass-card">
+                <h2 class="text-2xl font-semibold text-white mb-4 border-b border-gray-600 pb-2">Park Vehicle</h2>
+                <form id="park-form">
+                    <div class="mb-4">
+                        <label for="park-plate" class="block text-sm font-medium text-gray-300 mb-1">License Plate</label>
+                        <input type="text" id="park-plate" name="licensePlate" required
+                            class="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-green-400 focus:border-green-400 shadow-inner bg-white/5 text-white"
+                            placeholder="XYZ123">
+                    </div>
+                    <div class="mb-4">
+                        <label for="park-type" class="block text-sm font-medium text-gray-300 mb-1">Vehicle Type</label>
+                        <select id="park-type" name="vehicleType" required
+                            class="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-green-400 focus:border-green-400 shadow-inner bg-white/5 text-white appearance-none">
+                            <option value="CAR" class="text-gray-800">CAR (Standard)</option>
+                            <option value="MOTORCYCLE" class="text-gray-800">MOTORCYCLE</option>
+                            <option value="EV" class="text-gray-800">EV (Electric - Reserved)</option>
+                            <option value="HANDICAP" class="text-gray-800">HANDICAP (Reserved)</option>
+                        </select>
+                    </div>
+                    <button type="submit" id="park-button"
+                        class="w-full py-2 px-4 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600 transition duration-150 shadow-md focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:bg-gray-400">
+                        Park Now
+                    </button>
+                </form>
+            </div>
+
+            <!-- Unpark Vehicle Card (Glassmorphism applied) -->
+            <div class="lg:col-span-1 p-6 rounded-xl shadow-xl border-red-400 glass-card">
+                <h2 class="text-2xl font-semibold text-white mb-4 border-b border-gray-600 pb-2">Unpark Vehicle</h2>
+                <form id="unpark-form">
+                    <div class="mb-4">
+                        <label for="unpark-slot" class="block text-sm font-medium text-gray-300 mb-1">Slot ID</label>
+                        <input type="text" id="unpark-slot" name="slotId" required
+                            class="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-red-400 focus:border-red-400 shadow-inner bg-white/5 text-white"
+                            placeholder="S1, S50, etc.">
+                    </div>
+                    <p class="text-xs text-gray-400 mb-4">Enter the Slot ID to free up the space and calculate the parking fee.</p>
+                    <button type="submit" id="unpark-button"
+                        class="w-full py-2 px-4 bg-red-500 text-white font-bold rounded-lg hover:bg-red-600 transition duration-150 shadow-md focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:bg-gray-400">
+                        Unpark / Exit
+                    </button>
+                </form>
+            </div>
+            
+            <!-- Overall Status Card (Glassmorphism applied) -->
+            <div class="lg:col-span-1 p-6 rounded-xl shadow-xl border-blue-400 glass-card flex flex-col justify-between">
+                <div>
+                    <h2 class="text-2xl font-semibold text-white mb-4 border-b border-gray-600 pb-2">Lot Summary</h2>
+                    <div class="space-y-3">
+                        <p class="flex justify-between items-center text-gray-300">
+                            Total Slots: <span id="total-slots" class="text-xl font-bold text-white">0</span>
+                        </p>
+                        <p class="flex justify-between items-center text-gray-300">
+                            Occupied: <span id="occupied-slots" class="text-xl font-bold text-red-400">0</span>
+                        </p>
+                        <p class="flex justify-between items-center text-gray-300">
+                            Available: <span id="available-slots" class="text-xl font-bold text-green-400">0</span>
+                        </p>
+                    </div>
+                </div>
+                <button onclick="fetchStatus()"
+                        class="mt-6 py-2 px-4 bg-blue-500 text-white font-bold rounded-lg hover:bg-blue-600 transition duration-150 shadow-md focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-gray-800">
+                        Refresh Status
+                </button>
+            </div>
+        </div>
+        
+        <!-- Parking Grid Display (Glassmorphism applied) -->
+        <div class="p-6 rounded-xl shadow-xl glass-card">
+            <h2 class="text-2xl font-semibold text-white mb-4">Parking Lot Visualization</h2>
+            <div id="slot-grid" class="slot-grid grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-3 max-h-96 overflow-y-auto p-2">
+                <!-- Slot cards will be inserted here by JavaScript -->
+            </div>
+        </div>
+
+        <!-- Hidden Modal for Slot Details (Glassmorphism applied) -->
+        <div id="details-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+            <div class="rounded-xl p-6 shadow-2xl max-w-md w-full glass-card border-blue-500">
+                <h3 class="text-2xl font-bold mb-4 text-blue-400" id="modal-slot-id"></h3>
+                <div id="modal-content" class="space-y-2 text-gray-200">
+                    <!-- Details populated by JS -->
+                </div>
+                <button onclick="document.getElementById('details-modal').classList.add('hidden')" 
+                        class="mt-6 w-full py-2 bg-blue-500 text-white font-bold rounded-lg hover:bg-blue-600">
+                    Close
+                </button>
+            </div>
+        </div>
+
+        <!-- NEW: Billing Slip Modal (Slip System - Glassmorphism applied) -->
+        <div id="slip-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+            <div class="rounded-xl p-8 shadow-2xl max-w-sm w-full transform transition-all duration-300 glass-card border-green-500">
+                <h3 class="text-3xl font-extrabold text-white text-center mb-4">Payment Slip</h3>
+                <div class="border-t-4 border-dashed border-blue-400 pt-4 space-y-3">
+                    <div class="flex justify-between items-center text-gray-300">
+                        <span class="font-medium">Slot ID:</span>
+                        <span id="slip-slot-id" class="font-bold text-lg text-blue-400"></span>
+                    </div>
+                    <div class="flex justify-between items-center text-gray-300">
+                        <span class="font-medium">Duration:</span>
+                        <span id="slip-duration" class="font-bold text-lg text-white"></span>
+                    </div>
+                    <div class="border-t border-gray-600 my-4 pt-4 flex justify-between items-center text-white">
+                        <span class="font-extrabold text-xl">Total Fee:</span>
+                        <span id="slip-fee" class="font-extrabold text-2xl text-green-400"></span>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-400 text-center mt-6">Thank you for using IPS. Parking time is rounded up to the nearest hour.</p>
+                <button onclick="document.getElementById('slip-modal').classList.add('hidden')" 
+                        class="mt-6 w-full py-2 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600">
+                    Acknowledge Payment
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Configuration and Utilities ---
+        const API_BASE_URL = '/api/parking';
+        const slotGrid = document.getElementById('slot-grid');
+        const loading = document.getElementById('loading');
+        const messageBox = document.getElementById('message-box');
+        const messageText = document.getElementById('message-text');
+
+        // Store current parking lot state globally for fast summary updates
+        let currentSlots = [];
+
+        // SVG Icons for reserved slots
+        const ICONS = {
+            'HANDICAP': `
+				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-person-wheelchair" viewBox="0 0 16 16">
+				  <path d="M12 3a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3m-.663 2.146a1.5 1.5 0 0 0-.47-2.115l-2.5-1.508a1.5 1.5 0 0 0-1.676.086l-2.329 1.75a.866.866 0 0 0 1.051 1.375L7.361 3.37l.922.71-2.038 2.445A4.73 4.73 0 0 0 2.628 7.67l1.064 1.065a3.25 3.25 0 0 1 4.574 4.574l1.064 1.063a4.73 4.73 0 0 0 1.09-3.998l1.043-.292-.187 2.991a.872.872 0 1 0 1.741.098l.206-4.121A1 1 0 0 0 12.224 8h-2.79zM3.023 9.48a3.25 3.25 0 0 0 4.496 4.496l1.077 1.077a4.75 4.75 0 0 1-6.65-6.65z"/>
+				</svg>
+            `,
+            'EV_CHARGING': `
+				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-ev-station" viewBox="0 0 16 16">
+				  <path d="M3.5 2a.5.5 0 0 0-.5.5v5a.5.5 0 0 0 .5.5h5a.5.5 0 0 0 .5-.5v-5a.5.5 0 0 0-.5-.5zm2.131 10.46H4.14v-.893h1.403v-.505H4.14v-.855h1.49v-.54H3.485V13h2.146zm1.316.54h.794l1.106-3.333h-.733l-.74 2.615h-.031l-.747-2.615h-.764z"/>
+				  <path d="M3 0a2 2 0 0 0-2 2v13H.5a.5.5 0 0 0 0 1h11a.5.5 0 0 0 0-1H11v-4a1 1 0 0 1 1 1v.5a1.5 1.5 0 0 0 3 0V4a.5.5 0 0 0-.146-.354l-.5-.5a.5.5 0 0 0-.707 0l-.5.5A.5.5 0 0 0 13 4v3c0 .71.38 1.096.636 1.357l.007.008c.253.258.357.377.357.635v3.5a.5.5 0 1 1-1 0V12a2 2 0 0 0-2-2V2a2 2 0 0 0-2-2zm7 2v13H2V2a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1"/>
+				</svg>
+            `
+        };
+
+
+        // Simple utility to format LocalDateTime (just the date and time, simplifying for frontend)
+        function formatDateTime(isoString) {
+            if (!isoString) return 'N/A';
+            try {
+                const date = new Date(isoString);
+                return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            } catch (e) {
+                return isoString; // Fallback
+            }
+        }
+
+        // --- Message Handling ---
+        function showMessage(text, type = 'success') {
+            messageText.textContent = text;
+            messageBox.classList.remove('hidden', 'bg-red-600/80', 'bg-green-600/80', 'border-red-400', 'border-green-400', 'text-white');
+
+            if (type === 'success') {
+                messageBox.classList.add('bg-green-600/80', 'border', 'border-green-400', 'text-white');
+                messageText.innerHTML = text; 
+            } else { // 'error'
+                messageBox.classList.add('bg-red-600/80', 'border', 'border-red-400', 'text-white');
+                messageText.innerHTML = text;
+            }
+
+            // Hide after 5 seconds
+            setTimeout(() => {
+                messageBox.classList.add('hidden');
+            }, 5000);
+        }
+
+        // --- Slip System Modal Functionality ---
+
+        /**
+         * Populates and displays the Billing Slip modal.
+         */
+        function showBillingSlip(data) {
+            const slipModal = document.getElementById('slip-modal');
+            
+            // Format fee to 2 decimal places
+            const feeDisplay = parseFloat(data.fee).toFixed(2);
+
+            // Populate modal fields
+            document.getElementById('slip-slot-id').textContent = data.slotId;
+            document.getElementById('slip-duration').textContent = data.duration;
+            document.getElementById('slip-fee').textContent = `$${feeDisplay}`;
+
+            // Hide the general message box and show the slip modal
+            messageBox.classList.add('hidden');
+            slipModal.classList.remove('hidden');
+            
+            // Note: We don't call fetchStatus here immediately. 
+            // The unpark operation will call updateSingleSlot for instant visual feedback. 
+            // We rely on the user to dismiss the modal before manually refreshing or the next operation.
+        }
+
+
+        // --- API Interaction ---
+
+        /**
+         * Fetches the current status of the parking lot from the API.
+         */
+        async function fetchStatus() {
+            loading.classList.remove('hidden');
+            slotGrid.innerHTML = '';
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/status`); 
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                currentSlots = await response.json(); // Store the full list
+                renderSlots(currentSlots);
+
+            } catch (error) {
+                console.error('Error fetching parking status:', error);
+                showMessage(`Failed to connect to the API: ${error.message}. Ensure the Spring Boot app is running and accessible.`, 'error');
+            } finally {
+                loading.classList.add('hidden');
+            }
+        }
+
+        /**
+         * Handles the response from park and unpark operations, delegating slip display to the modal.
+         * Now includes instant single slot update logic.
+         */
+        async function handleOperationResponse(response) {
+            // Assume the API returns the Slot object on PARK/UNPARK success, 
+            // and the UNPARK response includes billing details.
+            const data = await response.json().catch(() => ({}));
+
+            if (response.ok) {
+                
+                // --- SLIP SYSTEM IMPLEMENTATION: Check for fee data (Successful Unpark) ---
+                if (data.fee !== undefined && data.duration) {
+                    showBillingSlip(data);
+                    // The 'data' object should contain the newly freed slot state
+                    if (data.slotId) {
+                        updateSingleSlot(data); // INSTANT VISUAL UPDATE
+                    }
+                    
+                } else if (data.slotId) { 
+                    // Successful Park operation: data contains the newly occupied slot
+                    showMessage(data.message || `Vehicle parked in ${data.slotId}.`, 'success');
+                    updateSingleSlot(data); // INSTANT VISUAL UPDATE
+                } else {
+                    // Fallback for success message if no specific data is returned
+                    showMessage('Operation successful. Grid may take a moment to refresh.', 'success');
+                }
+                
+                // Regardless of the instant update, trigger a full refresh to update counts 
+                // and ensure global state consistency after a short delay
+                setTimeout(fetchStatus, 500); 
+                
+            } else {
+                // This is the section that handles HTTP errors (like 500, 404, 409)
+                const errorMessage = data.message || `Operation failed with status: ${response.status}`;
+                showMessage(errorMessage, 'error');
+                // No instant update needed on failure, but a status refresh is good.
+                setTimeout(fetchStatus, 500); 
+            }
+        }
+
+
+        // --- Rendering Logic ---
+
+        /**
+         * Generates the HTML string and configuration for a single parking slot card.
+         */
+        function getSlotHtml(slot) {
+            const isOccupied = slot.occupied;
+            
+            // Determine base styling based on occupancy
+            let statusClass;
+            let textClass;
+            if (isOccupied) {
+                // Occupied: Use solid color (darker red)
+                statusClass = 'bg-red-700/80 border-red-500 hover:bg-red-600/80';
+                textClass = 'text-white';
+            } else if (slot.slotSize === 'HANDICAP') {
+                // Handicap: Light indigo glass
+                statusClass = 'bg-indigo-300/20 border-indigo-400 hover:bg-indigo-300/30 cursor-pointer';
+                textClass = 'text-indigo-300';
+            } else if (slot.slotSize === 'EV_CHARGING') {
+                // EV: Light cyan glass
+                statusClass = 'bg-cyan-300/20 border-cyan-400 hover:bg-cyan-300/30 cursor-pointer';
+                textClass = 'text-cyan-300';
+            } else { 
+                // Standard: Light green glass
+                statusClass = 'bg-green-300/20 border-green-400 hover:bg-green-300/30 cursor-pointer';
+                textClass = 'text-green-300';
+            }
+            
+            // Get icon based on slot size
+            const iconHtml = ICONS[slot.slotSize] || '';
+            
+            // Get secondary text
+            const secondaryText = isOccupied 
+                ? slot.parkedVehicle.licensePlate 
+                : slot.isReserved ? 'RESERVED' : 'FREE';
+
+            // Create container element
+            const slotElement = document.createElement('div');
+            slotElement.id = `slot-${slot.slotId}`; // Unique ID for quick lookups
+            slotElement.className = `slot-card p-3 rounded-lg border shadow-lg text-center transition duration-150 ${statusClass} ${textClass}`;
+            
+            slotElement.innerHTML = `
+                <p class="font-bold text-sm flex justify-center items-center">
+                    <span class="slot-icon">${iconHtml}</span>
+                    ${slot.slotId}
+                </p>
+                <p class="text-xs mt-1 truncate font-medium">
+                    ${secondaryText}
+                </p>
+            `;
+            
+            // Add event listener for details modal
+            slotElement.addEventListener('click', () => showSlotDetails(slot));
+
+            return slotElement;
+        }
+
+        /**
+         * Updates a single slot in the grid instantly.
+         * @param {object} slot - The new state of the parking slot.
+         */
+        function updateSingleSlot(slot) {
+            const oldElement = document.getElementById(`slot-${slot.slotId}`);
+            if (oldElement) {
+                const newElement = getSlotHtml(slot);
+                oldElement.parentNode.replaceChild(newElement, oldElement);
+                
+                // Manually update the global state array (used by renderSlots for summary)
+                const index = currentSlots.findIndex(s => s.slotId === slot.slotId);
+                if (index !== -1) {
+                    currentSlots[index] = slot;
+                }
+                
+                // Update summary statistics immediately
+                updateSummaryStats(currentSlots);
+            }
+        }
+        
+        /**
+         * Updates the summary statistics on the dashboard.
+         */
+        function updateSummaryStats(slots) {
+            const totalSlots = slots.length;
+            const occupiedCount = slots.filter(s => s.occupied).length;
+            const availableCount = totalSlots - occupiedCount;
+
+            document.getElementById('total-slots').textContent = totalSlots;
+            document.getElementById('occupied-slots').textContent = occupiedCount;
+            document.getElementById('available-slots').textContent = availableCount;
+        }
+
+
+        /**
+         * Shows a detailed modal for a slot when clicked.
+         */
+        function showSlotDetails(slot) {
+            const modal = document.getElementById('details-modal');
+            document.getElementById('modal-slot-id').textContent = `Slot: ${slot.slotId}`;
+            const content = document.getElementById('modal-content');
+            content.innerHTML = '';
+
+            if (slot.occupied) {
+                const vehicle = slot.parkedVehicle;
+                if (vehicle) {
+                    content.innerHTML = `
+                        <p class="text-lg text-red-400 font-semibold">Status: OCCUPIED</p>
+                        <p>Slot Type: <span class="font-medium text-white">${slot.slotSize}</span></p>
+                        <p>Vehicle Type: <span class="font-medium text-white">${vehicle.vehicleType}</span></p>
+                        <p>License Plate: <span class="font-medium text-white">${vehicle.licensePlate}</span></p>
+                        <p>Entry Time: <span class="font-medium text-white">${formatDateTime(vehicle.entryTime)}</span></p>
+                    `;
+                }
+                // Add an unpark button to the modal
+                const unparkBtn = document.createElement('button');
+                unparkBtn.textContent = `Unpark Vehicle from ${slot.slotId}`;
+                unparkBtn.className = 'mt-4 w-full py-2 bg-red-500 text-white font-bold rounded-lg hover:bg-red-600';
+                unparkBtn.onclick = () => {
+                    // Pre-fill the unpark form slot ID and hide modal
+                    document.getElementById('unpark-slot').value = slot.slotId;
+                    document.getElementById('details-modal').classList.add('hidden');
+                    // Focus on the unpark button to encourage immediate action
+                    document.getElementById('unpark-button').focus();
+                };
+                content.appendChild(unparkBtn);
+
+            } else {
+                let slotStatus = slot.isReserved ? 'RESERVED & AVAILABLE' : 'AVAILABLE';
+                let statusColor;
+
+                // Set distinct color based on reserved slot type
+                if (slot.slotSize === 'HANDICAP') {
+                    statusColor = 'text-indigo-400';
+                } else if (slot.slotSize === 'EV_CHARGING') {
+                    statusColor = 'text-cyan-400';
+                } else {
+                    statusColor = 'text-green-400';
+                }
+
+                content.innerHTML = `
+                    <p class="text-lg ${statusColor} font-semibold">Status: ${slotStatus}</p>
+                    <p>Slot Size: <span class="font-medium text-white">${slot.slotSize}</span></p>
+                `;
+            }
+            modal.classList.remove('hidden');
+        }
+
+        /**
+         * Renders the entire grid of parking slots and updates the summary counts.
+         */
+        function renderSlots(slots) {
+            slotGrid.innerHTML = '';
+
+            slots.forEach(slot => {
+                const slotElement = getSlotHtml(slot);
+                slotGrid.appendChild(slotElement);
+            });
+
+            // Update the summary stats
+            updateSummaryStats(slots);
+        }
+
+        // --- Event Listeners ---
+
+        document.getElementById('park-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const button = document.getElementById('park-button');
+            button.disabled = true;
+            button.textContent = 'Parking...';
+
+            // Ensure slip modal is hidden when starting a new operation
+            document.getElementById('slip-modal').classList.add('hidden');
+
+            const licensePlate = document.getElementById('park-plate').value.trim();
+            const vehicleType = document.getElementById('park-type').value;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/park`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ licensePlate, vehicleType })
+                });
+                await handleOperationResponse(response);
+                if (response.ok) e.target.reset(); // Clear form on success
+            } catch (error) {
+                showMessage(`Network error during parking: ${error.message}`, 'error');
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Park Now';
+            }
+        });
+
+        document.getElementById('unpark-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const button = document.getElementById('unpark-button');
+            button.disabled = true;
+            button.textContent = 'Unparking...';
+            
+            // Ensure slip modal is hidden when starting a new operation
+            document.getElementById('slip-modal').classList.add('hidden');
+
+
+            const slotId = document.getElementById('unpark-slot').value.trim().toUpperCase();
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/unpark`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ slotId })
+                });
+                await handleOperationResponse(response);
+                if (response.ok) e.target.reset(); // Clear form on success
+            } catch (error) {
+                showMessage(`Network error during unparking: ${error.message}`, 'error');
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Unpark / Exit';
+            }
+        });
+
+        // --- Initialization ---
+        window.onload = fetchStatus;
+
+    </script>
+</body>
+</html>
