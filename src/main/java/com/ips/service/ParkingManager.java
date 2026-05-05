@@ -14,19 +14,53 @@ import java.util.Optional;
 import java.util.stream.IntStream;
 
 /**
- * Manages the state and core logic of the parking lot using persistent storage (MySQL via JPA).
- * Includes intelligent allocation logic based on vehicle and slot type.
+ * Service layer class responsible for managing the parking lot.
+ *
+ * Responsibilities:
+ * - Initialize parking slots in the database
+ * - Handle vehicle parking (allocation logic)
+ * - Handle vehicle unparking (freeing slots)
+ * - Provide current parking status
+ *
+ * Uses Spring Data JPA repositories for persistence (MySQL or any configured DB).
  */
 @Service
 public class ParkingManager {
 
+    /**
+     * Repository for performing CRUD operations on ParkingSlot entities.
+     */
     private final ParkingSlotRepository slotRepository;
+
+    /**
+     * Repository for performing CRUD operations on Vehicle entities.
+     */
     private final VehicleRepository vehicleRepository;
+
+    /**
+     * Total number of parking slots in the system.
+     */
     private static final int TOTAL_SLOTS = 100;
+
+    /**
+     * Number of slots reserved for handicap vehicles.
+     */
     private static final int HANDICAP_SLOTS = 5;
+
+    /**
+     * Number of slots reserved for EV charging vehicles.
+     */
     private static final int EV_SLOTS = 5;
+
+    /**
+     * Special constant used as a signal value when a vehicle is already parked.
+     * This helps differentiate from "parking full" (which returns null).
+     */
     public static final String ALREADY_PARKED_SLOT_ID = "ALREADY_PARKED";
 
+    /**
+     * Constructor-based dependency injection.
+     */
     @Autowired
     public ParkingManager(ParkingSlotRepository slotRepository, VehicleRepository vehicleRepository) {
         this.slotRepository = slotRepository;
@@ -34,110 +68,173 @@ public class ParkingManager {
     }
 
     /**
-     * Initializes the parking lot with standard and reserved slots if it's empty in the database.
+     * Initializes the parking lot when the application starts.
+     *
+     * @PostConstruct ensures this method runs once after bean creation.
+     *
+     * Logic:
+     * - If no slots exist in DB → create all slots
+     * - If slots already exist → skip initialization
+     *
+     * Slot distribution:
+     * - S1–S5   → HANDICAP (reserved)
+     * - S6–S10  → EV_CHARGING (reserved)
+     * - S11–S100 → STANDARD (non-reserved)
      */
     @PostConstruct
     public void initializeParkingLot() {
         if (slotRepository.count() == 0) {
             
             // 1. Initialize Reserved Slots (Handicap and EV)
-            // Handicap slots (S1 to S5)
+
+            // Create handicap reserved slots
             IntStream.rangeClosed(1, HANDICAP_SLOTS).forEach(i -> {
-                ParkingSlot slot = new ParkingSlot("S" + i, "HANDICAP", false, true, null);
+                ParkingSlot slot = new ParkingSlot(
+                        "S" + i,          // Slot ID
+                        "HANDICAP",       // Slot type
+                        false,            // Not occupied initially
+                        true,             // Reserved slot
+                        null              // No vehicle assigned
+                );
                 slotRepository.save(slot);
             });
 
-            // EV Charging slots (S6 to S10)
+            // Create EV charging reserved slots
             IntStream.rangeClosed(HANDICAP_SLOTS + 1, HANDICAP_SLOTS + EV_SLOTS).forEach(i -> {
-                ParkingSlot slot = new ParkingSlot("S" + i, "EV_CHARGING", false, true, null);
+                ParkingSlot slot = new ParkingSlot(
+                        "S" + i,
+                        "EV_CHARGING",
+                        false,
+                        true,
+                        null
+                );
                 slotRepository.save(slot);
             });
             
-            // 2. Initialize Standard Slots (S11 to S100)
+            // 2. Initialize Standard Slots (non-reserved)
             IntStream.rangeClosed(HANDICAP_SLOTS + EV_SLOTS + 1, TOTAL_SLOTS).forEach(i -> {
-                ParkingSlot slot = new ParkingSlot("S" + i, "STANDARD", false, false, null);
+                ParkingSlot slot = new ParkingSlot(
+                        "S" + i,
+                        "STANDARD",
+                        false,
+                        false,   // Not reserved
+                        null
+                );
                 slotRepository.save(slot);
             });
 
             System.out.println("Initialized " + TOTAL_SLOTS + " parking slots with zones.");
         } else {
+            // Skip initialization if data already exists
             System.out.println("Parking lot already initialized with " + slotRepository.count() + " slots.");
         }
     }
 
     /**
-     * Intelligent allocation of a vehicle to the most suitable slot.
-     * 1. Try to find a matching reserved spot (e.g., HANDICAP car -> HANDICAP slot).
-     * 2. If no matching reserved spot is found, fall back to a STANDARD spot.
-     * 3. If a standard vehicle tries to take a reserved spot, it is blocked.
+     * Parks a vehicle using intelligent allocation strategy.
      *
-     * @param licensePlate The license plate of the vehicle.
-     * @param vehicleType The type of the vehicle (e.g., CAR, HANDICAP, EV).
-     * @return The allocated ParkingSlot object, or null if full.
+     * Allocation Steps:
+     * 1. Check if the vehicle is already parked → return special sentinel.
+     * 2. Map vehicle type to required slot type (e.g., EV → EV_CHARGING).
+     * 3. Try to allocate a matching reserved slot (for EV / HANDICAP).
+     * 4. If not available → fallback to standard slot.
+     * 5. If slot found → mark occupied and persist.
+     * 6. If no slot available → return null.
+     *
+     * @param licensePlate Unique vehicle identifier
+     * @param vehicleType Type of vehicle (CAR, EV, HANDICAP, etc.)
+     * @return Allocated ParkingSlot, sentinel slot, or null if full
      */
     public ParkingSlot parkVehicle(String licensePlate, String vehicleType) {
         
-        // Map vehicle type to required slot size (Intelligent Mapping fix)
+        // Default mapping: assume slot type same as vehicle type
         String requiredSlotSize = vehicleType;
         
+        // Check if vehicle is already parked
         if (vehicleRepository.findById(licensePlate).isPresent()) {
-            // Signal to the controller that the vehicle is already parked
-            // Returning a new slot with a specific slotId to differentiate from 'lot full' (null)
+            
+            // Create a sentinel ParkingSlot object to indicate "already parked"
             ParkingSlot alreadyParkedSentinel = new ParkingSlot();
             alreadyParkedSentinel.setSlotId(ALREADY_PARKED_SLOT_ID);
             return alreadyParkedSentinel;
         }
         
+        // Special mapping: EV vehicles require EV_CHARGING slots
         if (vehicleType.equals("EV")) {
-             // EV vehicle requires an EV_CHARGING slot
             requiredSlotSize = "EV_CHARGING";
         }
         
-        // 1. Attempt to find a specific (reserved) slot type if the vehicle is specialized
         ParkingSlot allocatedSlot = null;
+        
+        // Step 1: Try reserved/specific slots for special vehicles
         if (vehicleType.equals("HANDICAP") || vehicleType.equals("EV")) {
-            // Find a spot that matches the vehicle type/mapped slot size exactly
-            allocatedSlot = slotRepository.findTopByIsOccupiedFalseAndSlotSize(requiredSlotSize);
+            allocatedSlot = slotRepository
+                    .findTopByIsOccupiedFalseAndSlotSize(requiredSlotSize);
         }
         
-        // 2. Fallback: If no specific slot was found OR if the vehicle is standard ("CAR" or "MOTORCYCLE"), 
-        // look for a standard, unreserved spot.
+        // Step 2: Fallback to standard slots
         if (allocatedSlot == null) {
-             allocatedSlot = slotRepository.findTopByIsOccupiedFalseAndIsReservedFalse();
+            allocatedSlot = slotRepository
+                    .findTopByIsOccupiedFalseAndIsReservedFalse();
         }
 
+        // Step 3: If a slot is found, assign vehicle
         if (allocatedSlot != null) {
-            // Found a slot! Proceed with parking.
-            Vehicle newVehicle = new Vehicle(licensePlate, vehicleType, LocalDateTime.now(), allocatedSlot.getSlotId());
+
+            // Create vehicle entity with current timestamp
+            Vehicle newVehicle = new Vehicle(
+                    licensePlate,
+                    vehicleType,
+                    LocalDateTime.now(),
+                    allocatedSlot.getSlotId()
+            );
             
+            // Update slot state
             allocatedSlot.setOccupied(true);
             allocatedSlot.setParkedVehicle(newVehicle);
 
+            // Persist updated slot (and vehicle via cascading if configured)
             slotRepository.save(allocatedSlot);
             
             return allocatedSlot;
         }
         
-        return null; // Parking lot is full or no suitable slot was found
+        // No slot available
+        return null;
     }
 
     /**
-     * Clears a slot when a vehicle departs. (No change needed here, logic remains the same)
+     * Unparks a vehicle from a given slot.
+     *
+     * Steps:
+     * - Find slot by ID
+     * - Check if occupied
+     * - Remove vehicle reference
+     * - Mark slot as free
+     * - Delete vehicle record
+     *
+     * @param slotId Slot identifier
+     * @return true if successfully unparked, false otherwise
      */
     public boolean unparkVehicle(String slotId) {
         Optional<ParkingSlot> optionalSlot = slotRepository.findById(slotId);
         
         if (optionalSlot.isPresent()) {
             ParkingSlot slot = optionalSlot.get();
+
+            // Ensure slot is actually occupied before clearing
             if (slot.isOccupied() && slot.getParkedVehicle() != null) {
                 
                 String licensePlate = slot.getParkedVehicle().getLicensePlate();
 
+                // Clear slot state
                 slot.setParkedVehicle(null);
                 slot.setOccupied(false);
 
+                // Save updated slot
                 slotRepository.save(slot);
                 
+                // Remove vehicle record from DB
                 vehicleRepository.deleteById(licensePlate);
 
                 return true;
@@ -147,7 +244,9 @@ public class ParkingManager {
     }
 
     /**
-     * Gets the current status of all parking slots.
+     * Retrieves the current status of all parking slots.
+     *
+     * @return List of all ParkingSlot entities
      */
     public List<ParkingSlot> getStatus() {
         return slotRepository.findAll();
